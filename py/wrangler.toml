@@ -1,0 +1,70 @@
+# Your copy of chron agent on Cloudflare. Fill in the values marked "yours" before deploying.
+# Tip: keep your filled-in copy as wrangler.local.toml (git ignores it) and deploy with
+#   uv run pywrangler deploy -c wrangler.local.toml
+# so your own values never end up in git.
+name = "chron-agent"
+main = "src/entry.py"
+compatibility_date = "2025-11-02"
+compatibility_flags = ["python_workers"]
+
+# Put the site behind Cloudflare Access (login required), then point a domain at it here and turn
+# the public *.workers.dev address off. Until ACCESS_TEAM is set, every request is refused (401).
+workers_dev = true
+preview_urls = false
+# routes = [{ pattern = "reminders.example.com", custom_domain = true }]   # yours
+
+# The page (index.html, app.js, style.css, ...) is served as-is;
+# anything else (/api/...) goes to the Worker.
+[assets]
+directory = "../public"
+
+# The agent's model, through any OpenAI-compatible API (OpenRouter by default; a local
+# server like Ollama works too). The key is a secret: npx wrangler secret put LLM_API_KEY
+[vars]
+MODEL = "anthropic/claude-opus-5.5"
+LLM_BASE_URL = "https://openrouter.ai/api/v1"
+# Who's signed in (src/auth.py): your Cloudflare Access sign-in address (the start of the
+# address bar on the sign-in page), e.g. "https://yourteam.cloudflareaccess.com". Not secret.  (yours)
+ACCESS_TEAM = ""
+# Optional, once other sites use the same sign-in: Zero Trust → Access → Applications → this app →
+# "Application Audience (AUD) Tag".
+# ACCESS_AUD = ""
+
+# Notifications: which plugins are on, one file each in src/notify/ (push, email, call, text; ntfy is
+# an example to copy). Leave one out and it disappears from Settings, reminders and the agent.
+# Push needs only the two keys below; email, call and text need the setup at the top of their files.
+NOTIFY = "push"
+# Extra agent tools, one file each in src/tools/ (calendar: read your Google Calendar). Each person
+# still turns a tool on for themselves in Settings → Tools.
+TOOLS = ""
+# Push: the public key from `node setup/make_vapid_keys.mjs` (the private key is the secret
+# VAPID_PRIVATE_KEY) and a contact address push services may use.  (yours)
+VAPID_PUBLIC_KEY = ""
+VAPID_SUBJECT = "mailto:you@example.com"
+# Email (src/notify/email.py): the sender, on a domain onboarded in Compute → Email Service → Email
+# Sending, and your Cloudflare account ID (not secret). Also uncomment [[send_email]] below.  (yours)
+# EMAIL_FROM = "reminders@example.com"
+# CF_ACCOUNT_ID = ""
+# Texts and calls (src/notify/text.py, src/notify/call.py): from the Twilio console.  (yours)
+# TWILIO_ACCOUNT_SID = "AC..."
+# TWILIO_FROM = "+1..."
+# CALL_AUDIO_URL = "https://reminders.example.com"
+# With calls: NOTIFY = "push,email,call,text" (call before text, so Settings lists it first).
+
+# Email sending (Cloudflare Email Service), used by src/notify/email.py.
+# [[send_email]]
+# name = "EMAIL"
+
+# Two Durable Objects, each with its own SQLite database.
+[[durable_objects.bindings]]
+name = "DOC"          # todo.md and its versions (src/doc.py)
+class_name = "Doc"
+
+[[durable_objects.bindings]]
+name = "REMINDERS"    # reminders, their alarm, and the chat log (src/reminders.py)
+class_name = "Reminders"
+
+# Tells Cloudflare these classes are Durable Objects with SQLite storage.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Doc", "Reminders"]

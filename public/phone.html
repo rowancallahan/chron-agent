@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Texts to your phone</title>
+<style>
+  body { margin: 0; padding: 28px 20px 40px; background: #EEF1EF; color: #15201B; font: 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { margin: 0 0 18px; color: #55615B; }
+  ol { margin: 0 0 22px; padding-left: 22px; }
+  li { margin: 0 0 12px; }
+  b { font-weight: 600; }
+  a { color: #15201B; }
+  form { display: flex; gap: 8px; margin: 0 0 8px; }
+  input { flex: 1; min-width: 0; padding: 9px 12px; font: inherit; border: 1px solid #CBD3CE; border-radius: 6px; background: #FFFFFF; }
+  button { padding: 9px 16px; font: inherit; font-weight: 500; border: 1px solid #15201B; border-radius: 6px; background: #15201B; color: #FFFFFF; }
+  #why { min-height: 1.5em; color: #A1251B; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Texts to your phone</h1>
+  <p>Reminders and alerts can come as a text message. It takes a minute, once.</p>
+  <ol>
+    <li>Type your mobile number and tap <b>Save</b>.</li>
+    <li>Back in <b>Settings</b>, make sure <b>Text to</b> is ticked.</li>
+    <li>Tap <b>Test</b>. A text should arrive.</li>
+  </ol>
+  <form id="f">
+    <input id="number" type="tel" autocomplete="tel" placeholder="+1 503 555 1234" aria-label="Your mobile number" required>
+    <button>Save</button>
+  </form>
+  <p id="why" role="status"></p>
+  <p>No text? Ask whoever runs this site: their Twilio number may still be waiting for approval.</p>
+  <p><a href="/#settings">← Back</a></p>
+</main>
+<script>
+// Fill in the number you saved before, then save it; Settings shows it when you're back.
+// First from the copy the app keeps on this device (so it's there at once, nothing jumps), then from the server.
+function show(s) {
+  if (!s?.alerts) return;
+  document.getElementById("number").value ||= s.alerts.text_to || "";
+  document.getElementById("why").textContent = s.alerts.text_ready ? ""
+    : "Texting isn't switched on for this site yet. You can save your number now; texts start once it is.";
+}
+try { show(JSON.parse(localStorage.getItem("chron-last-state"))); } catch {}
+fetch("/api/state").then((r) => r.json()).then(show).catch(() => {});
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const why = document.getElementById("why");
+  why.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/alerts/text", { method: "PUT", headers: { "content-type": "application/json" },
+                                                  body: JSON.stringify({ number: document.getElementById("number").value }) });
+    if (!res.ok) throw new Error(await res.text());
+    location.replace("/#settings");  // replace: Back won't land on this page again
+  } catch (err) {
+    why.textContent = err instanceof TypeError ? "Couldn't reach the server. Try again." : err.message;
+  }
+});
+</script>
+</body>
+</html>

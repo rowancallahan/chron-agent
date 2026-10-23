@@ -1,0 +1,255 @@
+/* The page is exactly the visible screen: --app-height is set by fitScreen() in app.js (it shrinks while
+   the iPhone keyboard is up), so nothing gets pushed off screen or scrolled out from under you. */
+html, body { overscroll-behavior: none; }  /* no rubber-band bounce or pull-to-refresh moving the whole app */
+/* Feel like an app on phones: no double-tap zoom, no grey flash on tap, no text-selecting buttons by long-press */
+body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+header, button, .seg, .tabs { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#log, .scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+body { margin: 0; height: var(--app-height, 100dvh); overflow: hidden; display: flex; flex-direction: column; background: #EEF1EF; color: #15201B; font: 14px "IBM Plex Sans", system-ui, sans-serif; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); border-bottom: 1px solid #D5DCD8; background: #F7F9F8; }
+.tabs { display: flex; gap: 2px; padding: 3px; background: #E2E7E4; border-radius: 4px; }
+.tabs button { border: 0; background: transparent; color: #55615B; font-weight: 500; font-size: 14px; white-space: nowrap; }
+.tabs button.on { background: #FFFFFF; color: #15201B; }
+#status { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20;
+  max-width: min(480px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 6px; background: #15201B; color: #FFFFFF;
+  font-size: 13px; line-height: 1.4; box-shadow: 0 6px 18px rgba(21, 32, 27, .2); }
+#status[hidden] { display: none; }
+.msg.action { cursor: pointer; }
+.msg.action .details { margin-top: 4px; color: #7A8580; overflow-wrap: anywhere; }
+
+/* main panel on the left, chat on the right; the chat drops below when the window is narrow */
+.layout { flex: 1; min-height: 0; overflow: auto; display: flex; flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+.panel { min-width: 0; min-height: 440px; display: flex; flex-direction: column; overflow: hidden; background: #FFFFFF; border: 1px solid #D5DCD8; border-radius: 4px; }
+#main { flex: 999 1 640px; }
+aside { flex: 1 1 360px; max-width: 480px; }
+@media (max-width: 1060px) {  /* once the chat wraps below the main panel: full width, a fixed height that scrolls */
+  aside { max-width: none; }
+  body:not(.chat-tab) aside { height: min(75vh, 640px); }
+}
+@media (min-width: 1061px) { .layout { flex-wrap: nowrap; } } /* side by side: both panels fit the window and scroll inside */
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #E2E7E4; }
+.bar h1, .bar h2 { margin: 0; font-size: 16px; }
+.tools { display: flex; align-items: center; gap: 6px; }
+.tools .mono { white-space: nowrap; }  /* "v2 of 3" stays on one line */
+.scroll { flex: 1; min-height: 0; overflow: auto; }
+
+button { font: inherit; font-size: 13px; cursor: pointer; padding: 6px 12px; border: 1px solid #CBD3CE; border-radius: 3px; background: #FFFFFF; color: #15201B; }
+button:disabled { color: #9AA39E; cursor: default; }
+button.primary { background: #15201B; border-color: #15201B; color: #FFFFFF; }
+:focus-visible { outline: 2px solid #15201B; outline-offset: 2px; }
+input, select, textarea { font: inherit; box-sizing: border-box; padding: 4px 6px; border: 1px solid #CBD3CE; border-radius: 2px; }
+
+table { width: 100%; min-width: 600px; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #EEF1EF; }
+th { position: sticky; top: 0; background: #FFFFFF; font-size: 12px; font-weight: 500; color: #55615B; text-transform: uppercase; letter-spacing: .04em; }
+.mono { font-family: "IBM Plex Mono", monospace; font-size: 13px; }
+.muted { color: #55615B; }
+
+textarea.doc { font: 13px/1.7 "IBM Plex Mono", monospace; }
+textarea.doc { flex: 1; margin: 12px 16px; padding: 10px; resize: none; }
+
+#log { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+#log > * { flex-shrink: 0; }  /* bubbles keep their full height; the chat scrolls instead */
+.msg { max-width: 88%; padding: 8px 12px; border-radius: 4px; white-space: pre-wrap; background: #F4F6F5; align-self: flex-start; }
+.msg.you { background: #E4E9E6; align-self: flex-end; }
+.msg.you.pending { opacity: .55; }  /* on its way to the server */
+.msg.ghost { height: 34px; animation: ghost 1.2s ease-in-out infinite alternate; }  /* placeholders while the chat loads */
+@keyframes ghost { from { opacity: .45; } to { opacity: 1; } }
+.receipt { align-self: flex-end; margin-top: -8px; font-size: 11px; color: #9AA39F; }
+.event { font: 12px "IBM Plex Mono", monospace; color: #55615B; }
+/* The message box: one line that grows as you type (up to ~6 lines, then scrolls), and a round send button */
+#chat { display: flex; gap: 8px; align-items: flex-end; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #E2E7E4; background: #FFFFFF; }
+#chat textarea { flex: 1; resize: none; min-height: 40px; max-height: 140px; padding: 9px 12px; font: inherit; font-size: 14px; line-height: 20px;
+  border: 1px solid #CBD3CE; border-radius: 6px; background: #F7F9F8; }
+#chat textarea:focus { outline: none; border-color: #15201B; background: #FFFFFF; }
+#chat button.send { flex: none; width: 40px; height: 40px; padding: 0; border-radius: 6px; display: grid; place-items: center; }
+#chat button.send:disabled { background: #C9D1CD; border-color: #C9D1CD; color: #FFFFFF; }  /* nothing typed yet */
+#chat button.send.stop { background: #F7DCD8; border-color: #EBB8B0; color: #A1251B; }  /* the agent is working: Stop */
+#chat button.send .i-stop, #chat button.send.stop .i-send { display: none; }
+#chat button.send.stop .i-stop { display: block; }
+html.keyboard #chat { padding-bottom: 8px; }  /* keyboard up: sit right on top of it (no home-bar space) */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.msg .model { margin-top: 4px; font: 11px "IBM Plex Mono", monospace; color: #55615B; }
+.spinner { display: inline-block; width: 9px; height: 9px; border: 2px solid #C9D1CD; border-top-color: #55615B; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.settings { padding: 4px 16px 16px; }
+.settings h2 { font-size: 14px; margin: 16px 0 4px; }
+.settings p { margin: 0 0 8px; font-size: 13px; }
+.settings textarea.doc { display: block; width: 100%; min-height: 220px; margin: 0 0 8px; box-sizing: border-box; resize: vertical; }
+.settings .tools { flex-wrap: wrap; }
+button.danger { color: #A1251B; border-color: #E2B4AE; }
+.settings input { font: 13px "IBM Plex Mono", monospace; padding: 6px 8px; }
+.narrow { padding-right: max(16px, calc(100% - 816px)); }  /* Settings: on the left like the other tabs, at most 800px wide */
+.stack { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }  /* buttons on top of each other */
+#usage { min-height: 104px; }  /* room for the bars before they load, so nothing below jumps */
+.meter { height: 14px; background: #E4E9E6; border-radius: 3px; overflow: hidden; margin: 6px 0 4px; cursor: default; }
+.meter div { height: 100%; background: #15201B; }
+.spend { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: #15201B; }
+.spend + .meter { margin-top: 3px; }
+
+/* To do → Changes: a line diff. Added lines green with +, removed red and struck through, the rest muted. */
+.diff-head { margin: 0; padding: 12px 20px 6px; font-size: 13px; }
+.diff { padding: 0 20px 20px; font: 13px/1.6 "IBM Plex Mono", monospace; }
+.d { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 8px; border-radius: 2px; }
+.dsame { color: #7A8580; }
+.dadd { background: #E6F2EA; color: #1F5A33; }
+.ddel { background: #F7E4E1; color: #8E1F14; text-decoration: line-through; text-decoration-color: rgba(142, 31, 20, .45); }
+.dfold { color: #9AA39F; }
+
+/* reminders: list/calendar toggle */
+.seg { display: inline-flex; padding: 2px; background: #E2E7E4; border-radius: 4px; }
+.seg button { border: 0; background: transparent; padding: 4px 10px; color: #55615B; }
+.seg button.on { background: #FFFFFF; color: #15201B; }
+
+/* calendar: monochrome; a solid dot = notify me, a hollow dot = wake agent */
+.cal-nav { display: flex; align-items: center; gap: 2px; }
+.cal-nav button { border: 0; background: transparent; width: 28px; height: 28px; padding: 0; font-size: 18px; line-height: 1; color: #55615B; border-radius: 3px; }
+.cal-nav button:hover { background: #EEF1EF; color: #15201B; }
+.cal-nav .today-btn { width: auto; height: 26px; margin-left: 6px; padding: 0 10px; font-size: 12px; border: 1px solid #CBD3CE; color: #15201B; }
+.cal-title { min-width: 136px; text-align: center; font-weight: 600; font-size: 14px; }
+.cal-wrap { padding: 12px 16px 14px; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: #E7EBE9; border: 1px solid #E7EBE9; }
+.dow { background: #FFFFFF; padding: 6px 8px; font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; color: #7A8580; }
+.day { min-width: 0; min-height: 88px; padding: 5px 5px 6px; background: #FFFFFF; display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
+.day:hover { background: #FAFBFA; }
+.day.out { background: #FBFCFB; }
+.day.out .num, .day.out .chip { opacity: .45; }
+.day-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.num { min-width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; border-radius: 11px; }
+.day.today .num { background: #15201B; color: #FFFFFF; }
+.add { width: 20px; height: 20px; line-height: 19px; text-align: center; border-radius: 10px; font-size: 15px; color: #7A8580; opacity: 0; transition: opacity .12s; }
+.day:hover .add { opacity: 1; }
+.add:hover { background: #EEF1EF; color: #15201B; }
+.chip { position: relative; display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; padding: 1px 4px; border: 0; border-radius: 3px; background: transparent; color: #15201B; font-size: 12px; line-height: 18px; text-align: left; }
+.chip:hover, .chip:focus-visible { background: #EEF1EF; }
+.chip .t { flex: none; font: 11px "IBM Plex Mono", monospace; color: #6B7570; }
+.chip .lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { flex: none; display: inline-block; width: 6px; height: 6px; border-radius: 50%; box-sizing: border-box; background: #15201B; }
+.dot-agent { background: transparent; border: 1.5px solid #15201B; }
+.chip .pop { display: none; position: absolute; z-index: 10; left: 0; top: calc(100% + 4px); width: 230px; padding: 10px 12px; flex-direction: column; gap: 2px;
+  background: #15201B; color: #E9EDEB; border-radius: 4px; font-size: 12px; line-height: 1.5; white-space: normal; box-shadow: 0 6px 18px rgba(21,32,27,.2); cursor: default; }
+.chip .pop strong { color: #FFFFFF; font-size: 13px; font-weight: 600; }
+.chip .pop .pop-note { margin-top: 4px; padding-top: 6px; border-top: 1px solid #3A4842; color: #C9D1CD; }
+.chip:hover .pop, .chip:focus .pop { display: flex; }
+.day:nth-child(7n) .pop, .day:nth-child(7n-1) .pop { left: auto; right: 0; }  /* Fri/Sat: open to the left */
+.day.low .pop { top: auto; bottom: calc(100% + 4px); }                        /* bottom two weeks: open upward */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding-top: 10px; font-size: 12px; color: #7A8580; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) {
+  .day { min-height: 64px; padding: 3px; }
+  .chip .t { display: none; }
+  .chip { gap: 3px; padding: 1px 2px; font-size: 11px; }
+  .cal-title { min-width: 0; }
+}
+
+/* Settings: no chat panel, model picker */
+body.hide-chat aside, body.chat-tab #main { display: none; }
+body.chat-tab aside { flex: 1 1 auto; max-width: none; }   /* Chat tab: the chat fills the page */
+body.chat-tab .layout { flex-wrap: nowrap; }                /* ... exactly, so it scrolls inside instead of growing */
+button.icon { width: 26px; height: 26px; padding: 0; border: 0; background: transparent; font-size: 16px; line-height: 1; color: #15201B; border-radius: 3px; }
+button.icon:hover { background: #EEF1EF; }
+.settings select { font: inherit; font-size: 13px; padding: 6px 8px; }
+#model-pick { width: min(420px, 100%); }  /* fixed, so it doesn't jump when the full model list arrives */
+.small { font-size: 12px; }
+
+/* Phones: each reminder is a small block (title + note, then time, repeat, action) instead of a wide table */
+@media (max-width: 640px) {
+  table { min-width: 0; }
+  thead { display: none; }
+  #rem-body tr { display: block; padding: 10px 16px; border-bottom: 1px solid #EEF1EF; }
+  #rem-body td { display: inline-block; padding: 0 12px 0 0; border: 0; font-size: 13px; color: #55615B; }
+  #rem-body td:first-child { display: block; padding: 0 0 4px; font-size: 14px; color: #15201B; }
+}
+
+/* To do: rendered markdown, same fonts and plain look as the rest */
+.md { padding: 6px 20px 20px; line-height: 1.6; max-width: 760px; }
+.md h1, .md h2, .md h3, .md h4, .md h5 { margin: 18px 0 6px; font-weight: 600; }
+.md h2 { font-size: 17px; } .md h3 { font-size: 15px; } .md h4, .md h5 { font-size: 14px; }
+.md p { margin: 6px 0; }
+.md ul, .md ol { margin: 6px 0; padding-left: 22px; }
+.md li:has(> input[type=checkbox]) { list-style: none; margin-left: -20px; }  /* task lists: the box replaces the bullet */
+.md li > input[type=checkbox] { margin: 0 6px 0 0; vertical-align: -1px; }
+.md table { display: block; max-width: 100%; overflow-x: auto; width: auto; min-width: 0; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+.md th, .md td { position: static; padding: 6px 12px; border: 1px solid #E2E7E4; text-align: left; text-transform: none; letter-spacing: 0; font-size: 13px; color: inherit; }
+.md th { background: #F7F9F8; font-weight: 600; }
+.md h1 { font-size: 20px; margin: 18px 0 8px; }
+.md code { font: 12.5px "IBM Plex Mono", monospace; background: #F1F4F2; padding: 1px 4px; border-radius: 2px; }
+.md pre { background: #F4F6F5; padding: 10px 12px; border-radius: 3px; overflow: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid #D5DCD8; color: #55615B; }
+.md hr { border: 0; border-top: 1px solid #E2E7E4; margin: 14px 0; }
+
+/* The agent's chat replies are markdown too: no page padding, and nothing can spill out of the bubble */
+.msg.agent { white-space: normal; overflow: hidden; }
+.msg { overflow-wrap: anywhere; }                     /* long links and words wrap instead of being cut off */
+.msg.agent .md pre { max-width: 100%; overflow-wrap: normal; }  /* code keeps its lines and scrolls sideways */
+.msg.agent .md table { overflow-wrap: normal; }       /* wide tables scroll sideways (.md table) */
+.msg.agent:has(svg, table) { width: 88%; box-sizing: border-box; }  /* drawings and tables get room */
+.msg.agent .md { padding: 0; max-width: none; line-height: 1.5; }
+.msg.agent .md > :first-child { margin-top: 0; }
+.msg.agent .md > :last-child { margin-bottom: 0; }
+.msg.agent .md h1, .msg.agent .md h2, .msg.agent .md h3 { font-size: 15px; margin: 10px 0 4px; }
+.msg.agent svg { display: block; max-width: 100%; height: auto; margin: 8px 0; }
+.md a { color: #15201B; }
+
+/* Chat: ↗ next to the Chat tab opens it beside the other tabs */
+.tabs .pop-out { padding: 0 8px 0 2px; margin-left: -2px; font-size: 12px; color: #7A8580; }
+.tabs .pop-out:hover { color: #15201B; }
+.tabs .pop-out[hidden] { display: none; }
+
+/* Chat: a reminder that fired */
+.msg.alarm { background: #F3E4DF; color: #4A2219; }
+.msg.alarm .model { color: #8A5A4E; }
+
+/* Reminders: the name opens the reminder box; "+ Add a reminder" under the list and the calendar */
+.rem-link { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; color: #15201B; text-align: left; }
+.rem-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.add-rem { display: block; padding: 12px 14px; border: 0; background: none; font-size: 13px; color: #7A8580; }
+.add-rem:hover { color: #15201B; }
+.legend .add-rem { padding: 0; margin-right: auto; }
+
+/* The reminder box */
+#rem-box { width: min(380px, calc(100vw - 32px)); max-height: calc(var(--app-height, 100dvh) - 32px); overflow: auto; padding: 0;  /* fits above the phone keyboard */ border: 1px solid #D5DCD8; border-radius: 6px; color: #15201B; box-shadow: 0 10px 30px rgba(21,32,27,.16); }
+#rem-box::backdrop { background: rgba(21,32,27,.18); }
+#rem-form { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+#rem-form input, #rem-form textarea, #rem-form select { width: 100%; font-size: 14px; padding: 6px 8px; }
+#rem-form textarea { resize: vertical; }
+#rem-form .rem-title { padding: 2px 0 6px; border: 0; border-bottom: 1px solid #E2E7E4; border-radius: 0; font-size: 16px; font-weight: 600; }
+#rem-form .rem-title:focus-visible { outline: none; border-bottom-color: #15201B; }
+.rem-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #55615B; }
+#rem-form .rem-check input { width: auto; margin: 0; }
+
+/* Notifications (notify.js, notify/*.js): "Also send to" in the reminder box, and the Settings → Notifications rows */
+.rem-send { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; }
+.rem-send:empty { display: none; }
+.rem-send label { display: inline-flex; align-items: center; gap: 6px; }
+#rem-form .rem-send input { width: auto; margin: 0; }
+.alert-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; cursor: pointer; }
+.alert-row input { margin: 0; }
+.alert-row .text-field { width: 11em; padding: 5px 8px; font: inherit; border: 1px solid #CBD3CE; border-radius: 4px; }
+.alert-row label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.alert-row label:has(input:disabled) { color: #9AA39F; cursor: default; }
+button.quiet-link { border: 0; background: none; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+.alert-sub { padding: 0 0 6px 24px; }  /* a second line under a checkbox (e.g. your number) */
+.quiet-link { color: inherit; text-decoration-color: #C9D1CD; text-underline-offset: 3px; }  /* same text, a faint underline */
+.rem-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+.link-btn { margin-right: auto; padding: 6px 0; border: 0; background: none; font-size: 13px; color: #A1251B; }
+.link-btn[hidden] { display: none; }
+
+/* Phones: text boxes at 16px, so the iPhone doesn't zoom in when you tap one; a tighter header */
+@media (max-width: 640px) {
+  input, select, textarea, #chat textarea { font-size: 16px; }
+  header { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top)); flex-wrap: wrap; }
+  .layout { padding: 8px; gap: 8px; }
+  .tabs { width: 100%; }
+  .tabs button { flex: 1; padding: 6px 4px; }
+  .panel { min-height: 0; }
+  /* Chat tab on a phone: edge to edge, no title bar -- more room for messages, the box right on the keyboard */
+  body.chat-tab .layout { padding: 0; }
+  body.chat-tab aside { border: 0; border-radius: 0; }
+  body.chat-tab aside > .bar { display: none; }
+}
+
+/* Chat: a change or an error (smaller and quieter than a message) */
+.msg.action { padding: 5px 10px; font-size: 12px; color: #55615B; background: #F4F6F5; }
+.msg.action { cursor: default; }

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texting setup</title>
+<link rel="stylesheet" href="style.css">
+<style>body { height: auto; overflow: auto; } main { max-width: 640px; margin: 0 auto; padding: 24px 20px 48px; line-height: 1.6; } code { font-family: "IBM Plex Mono", monospace; font-size: 13px; }</style>
+</head>
+<body>
+<main>
+  <h1>Texting setup</h1>
+  <p>Texts are sent through Twilio. Whoever runs this site sets it up once; after that, anyone signed in can tick "Text to" in Settings.</p>
+  <ol>
+    <li>Make a Twilio account and upgrade it (add a payment method and a starting balance). A free trial can only send Twilio's own sample texts, not reminders.</li>
+    <li>Get a number that can text US phones, and register it. Either:
+      <ul>
+        <li>a toll-free number, then <b>Toll-Free Verification</b> (free; as an individual, pick Sole Proprietor), or</li>
+        <li>a local number, then <b>A2P 10DLC</b> registration as a Sole Proprietor (small one-time fees and a monthly fee; Twilio texts you a code to confirm).</li>
+      </ul>
+      Texts won't arrive until it's approved, usually within days.</li>
+    <li>In <code>py/wrangler.toml</code>, fill in <code>TWILIO_ACCOUNT_SID</code> (from the Twilio console, starts with <code>AC</code>) and <code>TWILIO_FROM</code> (your Twilio number, like <code>+18885551234</code>), and remove the <code>#</code> in front of both.</li>
+    <li>Make an API key: in the Twilio console, <b>API keys &amp; tokens</b> → <b>Create API key</b>, type <b>Standard</b>. Store its two parts as secrets, from the <code>py</code> folder (copy each one, then run):
+      <br><code>pbpaste | npx wrangler secret put TWILIO_API_KEY</code> (the key's SID, starts with <code>SK</code>)
+      <br><code>pbpaste | npx wrangler secret put TWILIO_API_SECRET</code> (the secret, shown only once)</li>
+    <li>List the numbers this site may text or call at all (just yours, to start), as a secret: <code>pbpaste | npx wrangler secret put PHONE_NUMBERS</code> (like <code>+15035551234</code>; separate several with commas). Any other number is refused.</li>
+    <li>Deploy. Then in Settings, tap "(need to set this up?)" next to "Text to", save your number, then press Test.</li>
+  </ol>
+  <p><a class="quiet-link" href="/#settings">← Back</a></p>
+</main>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Read my Google Calendar</title>
+<style>
+  body { margin: 0; padding: 28px 20px 40px; background: #EEF1EF; color: #15201B; font: 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { margin: 0 0 18px; color: #55615B; }
+  ol { margin: 0 0 22px; padding-left: 22px; }
+  li { margin: 0 0 12px; }
+  b { font-weight: 600; }
+  a { color: #15201B; }
+  form { display: flex; gap: 8px; margin: 0 0 8px; }
+  input { flex: 1; min-width: 0; padding: 9px 12px; font: inherit; border: 1px solid #CBD3CE; border-radius: 6px; background: #FFFFFF; }
+  button { padding: 9px 16px; font: inherit; font-weight: 500; border: 1px solid #15201B; border-radius: 6px; background: #15201B; color: #FFFFFF; }
+  .quiet { padding: 0; border: 0; background: none; color: #55615B; text-decoration: underline; font-weight: 400; }
+  #why { min-height: 1.5em; color: #A1251B; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Read my Google Calendar</h1>
+  <p>The agent can look at your calendar (it can't change it) when you ask things like "what's on tomorrow?" It takes a minute, once, on a computer.</p>
+  <ol>
+    <li>Open <b>Google Calendar</b> on a computer and click the <b>gear</b>, then <b>Settings</b>.</li>
+    <li>On the left, under <b>Settings for my calendars</b>, click your calendar, then <b>Integrate calendar</b>.</li>
+    <li>Copy the <b>Secret address in iCal format</b> (it starts with <b>https://calendar.google.com/calendar/ical/</b>).</li>
+    <li>Paste it below and tap <b>Save</b>.</li>
+  </ol>
+  <p>Keep that link private: anyone who has it can see your calendar. It's kept only in your account here, and the agent never sees it, only your events.</p>
+  <form id="f">
+    <input id="link" type="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" aria-label="Secret address in iCal format" required>
+    <button>Save</button>
+  </form>
+  <p id="why" role="status"></p>
+  <p><button class="quiet" id="forget" type="button">Remove my calendar link</button> · <a href="/#settings">← Back</a></p>
+</main>
+<script>
+// Save (or remove) the link, then go back to Settings.
+async function send(link) {
+  const why = document.getElementById("why");
+  why.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/tools/calendar", { method: "PUT", headers: { "content-type": "application/json" },
+                                                     body: JSON.stringify({ link }) });
+    if (!res.ok) throw new Error(await res.text());
+    location.replace("/#settings");  // replace: Back won't land on this page again
+  } catch (err) {
+    why.textContent = err instanceof TypeError ? "Couldn't reach the server. Try again." : err.message;
+  }
+}
+document.getElementById("f").addEventListener("submit", (e) => { e.preventDefault(); send(document.getElementById("link").value); });
+document.getElementById("forget").addEventListener("click", () => send(""));
+</script>
+</body>
+</html>

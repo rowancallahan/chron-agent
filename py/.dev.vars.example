@@ -1,0 +1,3 @@
+# Secrets this Worker needs. Store each with: npx wrangler secret put NAME
+# (For running locally, copy this file to .dev.vars and fill it in -- git ignores .dev.vars.)
+LLM_API_KEY=

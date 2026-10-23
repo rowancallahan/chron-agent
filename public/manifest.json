@@ -1,0 +1,9 @@
+{
+  "name": "chron.work",
+  "short_name": "chron",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EEF1EF",
+  "theme_color": "#EEF1EF",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

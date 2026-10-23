@@ -1,0 +1,41 @@
+.wrangler/
+node_modules/
+py/.uv-cache/
+py/.uv-python/
+py/.venv-workers/
+py/.venv/
+py/python_modules/
+py/.npm-cache/
+.dev.vars
+
+__pycache__/
+*.pyc
+
+# secrets (real ones live in Cloudflare: npx wrangler secret put NAME)
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+*.pem
+*.key
+# web push private key file from py/setup/make_vapid_keys.mjs (store it as a secret, then delete it)
+vapid-private.json
+
+# local tool settings, with personal paths and hosts
+.claude/
+py/.claude/
+
+# your own filled-in config (domain, account id, sign-in, email): deploy with -c wrangler.local.toml
+py/wrangler.local.toml
+wrangler.local.toml
+
+# personal pages and notes, not part of the app
+landing/
+experiments/
+CLOUDFLARE_SETUP.md
+
+.DS_Store
+*.log
+
+# private working notes (plans, account details)
+SESSION_SUMMARY.md

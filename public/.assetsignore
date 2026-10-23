@@ -1,0 +1,2 @@
+# Never publish hidden files or folders (e.g. .claude/, .DS_Store) from this folder.
+.*

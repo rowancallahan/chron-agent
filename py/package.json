@@ -1,0 +1,12 @@
+{
+  "name": "chron-agent",
+  "private": true,
+  "scripts": {
+    "dev": "uv run pywrangler dev",
+    "deploy": "uv run pywrangler deploy",
+    "deploy:local": "uv run pywrangler deploy -c wrangler.local.toml"
+  },
+  "devDependencies": {
+    "wrangler": "^4.114.0"
+  }
+}
