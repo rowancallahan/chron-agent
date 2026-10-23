@@ -28,6 +28,8 @@ py/.claude/
 # your own filled-in config (domain, account id, sign-in, email): deploy with -c wrangler.local.toml
 py/wrangler.local.toml
 wrangler.local.toml
+wrangler.test.toml
+wrangler.mcptest.toml
 
 # personal pages and notes, not part of the app
 landing/

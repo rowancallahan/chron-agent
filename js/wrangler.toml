@@ -1,0 +1,45 @@
+# Your copy of chron agent (the JavaScript version). Keep your filled-in copy as wrangler.local.toml
+# (git ignores it) and deploy with: npx wrangler deploy -c wrangler.local.toml
+name = "chron-agent"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Put the site behind Cloudflare Access (login required), then point a domain at it and turn the
+# public *.workers.dev address off. Until ACCESS_TEAM is set, every request is refused (401).
+workers_dev = true
+preview_urls = false
+# routes = [{ pattern = "reminders.example.com", custom_domain = true }]   # yours
+
+# The page (index.html, app.js, style.css, ...) is served as-is; anything else goes to the Worker.
+[assets]
+directory = "../public"
+
+[vars]
+# The agent's model, through any OpenAI-compatible API. The key is a secret: npx wrangler secret put LLM_API_KEY
+MODEL = "anthropic/claude-opus-5.5"
+LLM_BASE_URL = "https://openrouter.ai/api/v1"
+# Your Cloudflare Access sign-in address, e.g. "https://yourteam.cloudflareaccess.com" (src/plugins/auth.js)
+ACCESS_TEAM = ""
+# Plugins that are on, in the order Settings lists them: src/plugins/notify/ and src/plugins/tools/
+NOTIFY = "push"
+TOOLS = ""
+# Push: the public key from `node setup/make_vapid_keys.mjs` (the private key is the secret
+# VAPID_PRIVATE_KEY) and a contact address push services may use.
+VAPID_PUBLIC_KEY = ""
+VAPID_SUBJECT = "mailto:you@example.com"
+# Email, texts and calls: see the top of each file in src/plugins/notify/.
+
+# MCP (src/plugins/mcp.js), so Claude can use your list: set MCP = "on" under [vars] and bind a KV
+# namespace for its sign-in tokens: npx wrangler kv namespace create OAUTH_KV, then put its id here.
+# [[kv_namespaces]]
+# binding = "OAUTH_KV"
+# id = ""
+
+# One Durable Object per person, with its own SQLite database (src/chron.js).
+[[durable_objects.bindings]]
+name = "CHRON"
+class_name = "Chron"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Chron"]
