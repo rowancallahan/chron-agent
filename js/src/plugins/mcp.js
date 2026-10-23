@@ -23,9 +23,14 @@ import { user } from "./auth.js";
 // plain JSON (no streaming), with the methods initialize, ping, tools/list and tools/call.
 
 const providers = new Map(); // one per site address (the library needs the address up front)
+// Other addresses MCP clients try for the same sign-in details (e.g. Claude asks the first one first)
+const ALIASES = { "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource/mcp",
+  "/.well-known/oauth-authorization-server/mcp": "/.well-known/oauth-authorization-server",
+  "/.well-known/openid-configuration": "/.well-known/oauth-authorization-server" };
 
 export function fetch(request, env, ctx, app) {
-  const origin = new URL(request.url).origin;
+  const { origin, pathname } = new URL(request.url);
+  if (ALIASES[pathname]) request = new Request(origin + ALIASES[pathname], request);
   if (!providers.has(origin)) providers.set(origin, new OAuthProvider({
     apiRoute: "/mcp", apiHandler: { fetch: mcp }, defaultHandler: { fetch: (r, e, c) => authorize(r, e, c, app) },
     authorizeEndpoint: "/authorize", tokenEndpoint: "/oauth/token", clientRegistrationEndpoint: "/oauth/register",
