@@ -130,8 +130,8 @@ function renderLog() {
     ? `<div class="msg alarm">⏰ ${esc(m.text.replace(/^Reminder: /, ""))}<div class="model">${fmt(m.at)}</div></div>`
     : m.role === "event"
     ? `<div class="msg action" data-act="details" data-at="${m.at}" title="${esc(m.text.replace(" | ", "\n") + "\n" + fmt(m.at))}">${esc(m.text.split(" | ")[0])}<div class="details"${opened.has(String(m.at)) ? "" : " hidden"}>${esc(m.text.split(" | ").slice(1).join(" | "))} · ${fmt(m.at)}</div></div>`
-    : m.role === "agent"
-    ? `<div class="msg agent" title="${fmt(m.at)}"><div class="md">${markdown(m.text, true)}</div>${m.model ? `<div class="model">${esc(m.model)}</div>` : ""}</div>`
+    : m.role === "agent" || m.role === "claude" // Claude (through MCP) gets its own bubble and label
+    ? `<div class="msg agent ${m.role}" title="${fmt(m.at)}"><div class="md">${markdown(m.text, true)}</div>${m.role === "claude" ? `<div class="model">Claude</div>` : m.model ? `<div class="model">${esc(m.model)}</div>` : ""}</div>`
     : `<div class="msg ${m.role}${m.pending ? " pending" : ""}" title="${fmt(m.at)}">${esc(m.text)}</div>`  // hover: when it was sent
       + (m === lastYours ? `<div class="receipt">${m.pending ? "Sending…" : m.id <= S.seen ? "Seen" : "Delivered"}</div>` : "")).join("")
     + (!S.thinking ? "" : S.partial ? `<div class="msg agent" id="live"><div class="md"></div></div>`  // the reply, as it's written

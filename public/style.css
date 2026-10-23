@@ -199,6 +199,7 @@ button.icon:hover { background: #EEF1EF; }
 
 /* Chat: a reminder that fired */
 .msg.alarm { background: #F3E4DF; color: #4A2219; }
+.msg.claude { background: #FFFFFF; border: 1px solid #D5DCD8; }  /* Claude, through MCP: its own bubble */
 .msg.alarm .model { color: #8A5A4E; }
 
 /* Reminders: the name opens the reminder box; "+ Add a reminder" under the list and the calendar */

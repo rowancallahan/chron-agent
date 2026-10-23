@@ -17,7 +17,7 @@ export async function run(env, model, prompt, chron, chat, local, nowMs) {
     alerts: notify.describe(env, chron.sql), tools: tools.describe(env, chron.sql) });
   const messages = [{ role: "system", content: prompt + "\n" + facts }];
   for (const m of chat) { // every message starts with the time it was sent, e.g. "[2026-10-21 21:44]"
-    const label = m.role === "you" ? "" : "(event) ";
+    const label = { you: "", claude: "(Claude) " }[m.role] ?? "(event) ";
     messages.push(m.role === "agent" ? { role: "assistant", content: `[${local(m.at)}] ${m.text}` }
       : { role: "user", content: `[${local(m.at)}] ${label}${m.text}` });
   }

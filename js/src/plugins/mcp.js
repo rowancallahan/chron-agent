@@ -16,6 +16,9 @@ import { user } from "./auth.js";
 // Worker (the OAuth token protects them instead): /mcp, /oauth/token, /oauth/register, /.well-known/*
 // /authorize stays behind Access.
 //
+// Besides the agent's tools, Claude can talk in the chat as itself: send_message posts a "Claude" message
+// that the person's own agent answers (like one of theirs), and read_chat shows the conversation.
+//
 // The MCP protocol part is small, so it's written out here: JSON-RPC over HTTP POST, answered with
 // plain JSON (no streaming), with the methods initialize, ping, tools/list and tools/call.
 
@@ -84,18 +87,34 @@ async function mcp(request, env, ctx) {
   return Response.json(Array.isArray(body) ? answers : answers[0]);
 }
 
+const CHAT = [ // Claude's own tools, on top of actions.COMMANDS
+  { name: "send_message", description: "Post a message in the person's chat, as Claude. Their own agent (which also manages " +
+    "the list and reminders) reads it and answers; use read_chat a little later to see its reply. At most 20 an hour.",
+    inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
+  { name: "read_chat", description: "The newest messages in the person's chat (theirs, their agent's, yours, and events), oldest first.",
+    inputSchema: { type: "object", properties: { count: { type: "integer", description: "How many (default 20, at most 200)" } } } },
+];
+
+async function chat(chron, name, args) { // send_message / read_chat -> text
+  if (name === "read_chat") return chron.readChat(args.count);
+  try { await chron.claudeMessage(args.text); return "Posted. The agent will answer in the chat (read_chat to see it)."; }
+  catch (err) { return `Error: ${String(err.message || err).replace(/^Error: /, "")}`; }
+}
+
 async function answer(m, chron) { // one JSON-RPC message -> its reply (or null for a notification)
   if (!m || m.jsonrpc !== "2.0" || typeof m.method !== "string") return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid request" } };
   if (m.id === undefined) return null;
   const reply = (result) => ({ jsonrpc: "2.0", id: m.id, result });
   if (m.method === "initialize") return reply({ protocolVersion: m.params?.protocolVersion || "2025-06-18",
     capabilities: { tools: {} }, serverInfo: { name: "chron", version: "1.0" },
-    instructions: "The person's to do list (todo.md) and reminders. Same tools as their own agent; changes show in their chat." });
+    instructions: "The person's to do list (todo.md) and reminders, with the same tools as their own agent; changes show in their " +
+      "chat. To talk with their agent, use send_message and read_chat." });
   if (m.method === "ping") return reply({});
-  if (m.method === "tools/list") return reply({ tools: actions.COMMANDS.map(({ function: f }) =>
-    ({ name: f.name, description: f.description, inputSchema: f.parameters })) });
+  if (m.method === "tools/list") return reply({ tools: [...CHAT, ...actions.COMMANDS.map(({ function: f }) =>
+    ({ name: f.name, description: f.description, inputSchema: f.parameters }))] });
   if (m.method === "tools/call") {
-    const text = await chron.mcpCommand(m.params?.name, m.params?.arguments ?? {});
+    const name = m.params?.name, args = m.params?.arguments ?? {};
+    const text = CHAT.some((t) => t.name === name) ? await chat(chron, name, args) : await chron.mcpCommand(name, args);
     return reply({ content: [{ type: "text", text }], isError: /^(Error|Not saved):/.test(text) });
   }
   return { jsonrpc: "2.0", id: m.id, error: { code: -32601, message: `No method ${m.method}` } };

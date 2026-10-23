@@ -110,8 +110,22 @@ export class Chron extends DurableObject {
     try { return await actions.run(name, args && typeof args === "object" ? args : {}, this, "mcp"); }
     finally { Object.assign(this, { mcpAlerts: this.alertsSent, alertsSent: mine }); }
   }
-  waitingForAgent() { // you've sent a message the agent hasn't seen yet
-    const last = this.query("SELECT MAX(id) AS id FROM messages WHERE role = 'you'")[0].id ?? 0;
+  async claudeMessage(text) { // Claude (plugins/mcp.js) posts in the chat: the agent answers it like yours
+    if (typeof text !== "string" || !text.trim()) throw new Error("Empty message");
+    if (text.length > MAX_MESSAGE) throw new Error(`Messages can be at most ${MAX_MESSAGE.toLocaleString("en-US")} characters`);
+    const hour = now() - 3_600_000; // each one wakes the agent (and costs a model call): at most 20 an hour
+    if (this.query("SELECT COUNT(*) AS n FROM messages WHERE role = 'claude' AND at > ?", hour)[0].n >= 20)
+      throw new Error("At most 20 messages an hour");
+    this.log("claude", text.trim());
+    await this.setAlarm();
+  }
+  readChat(count) { // the newest messages, oldest first, as text (for Claude)
+    const n = Math.min(Math.max(parseInt(count) || 20, 1), 200), zone = this.zone();
+    const rows = this.query("SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT ?) ORDER BY id", n);
+    return rows.map((m) => `[${toLocal(m.at, zone)}] ${m.role}: ${m.text}`).join("\n\n") || "(no messages)";
+  }
+  waitingForAgent() { // you (or Claude) sent a message the agent hasn't seen yet
+    const last = this.query("SELECT MAX(id) AS id FROM messages WHERE role IN ('you', 'claude')")[0].id ?? 0;
     return last > (this.query("SELECT id FROM answered")[0]?.id ?? 0);
   }
   async runAgent() { // the whole chat, oldest first, every time (later: compact old chat)
